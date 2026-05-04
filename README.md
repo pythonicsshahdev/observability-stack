@@ -17,18 +17,24 @@ bash <(curl -sSL https://raw.githubusercontent.com/pythonicshahdev/boomi-observa
 - **Grafana** - Beautiful dashboards and alerting
 
 ## Architecture
-Boomi Atom/API Gateway
-↓
-┌───┴───┐
-↓       ↓
-Vector   OTel Collector
-(Logs/   (Traces)
-Metrics)      ↓
-↓         ↓
-└─→ OpenSearch ←─┘
-↓      ↓
-OpenSearch  Grafana
-Dashboards
+Boomi Atom / API Gateway
+                    │
+            ┌───────┴───────┐
+            │               │
+            ▼               ▼
+         Vector        OTel Collector
+      (Logs/Metrics)     (Traces)
+            │               │
+            └───────┬───────┘
+                    │
+                    ▼
+               OpenSearch
+                    │
+            ┌───────┴───────┐
+            │               │
+            ▼               ▼
+        OpenSearch        Grafana
+        Dashboards
 
 ## Access
 
