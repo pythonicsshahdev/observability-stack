@@ -1,56 +1,59 @@
 # Boomi Observability Stack
 
-Complete observability solution for Boomi integrations using OpenTelemetry, Vector, OpenSearch, and Grafana.
+A Docker-based observability pipeline for Boomi runtimes. Receives logs, metrics, and traces via OTLP and fans out traces to multiple downstream consumers — managed through a browser-based Control Plane UI.
 
-## Quick Start (One Command)
+**GitHub:** https://github.com/pythonicsshahdev/observability-stack  
+**Docker Hub:** https://hub.docker.com/u/pythonicshahdev
+
+---
+
+## Quick Start
 
 ```bash
-bash <(curl -sSL https://raw.githubusercontent.com/pythonicshahdev/boomi-observability-stack/main/install-boomi-stack.sh)
+curl -O https://raw.githubusercontent.com/pythonicsshahdev/observability-stack/main/install-boomi-stack.sh
+chmod +x install-boomi-stack.sh && ./install-boomi-stack.sh
 ```
 
-## What Gets Installed
-
-- **OpenSearch** - Stores all telemetry data (logs, metrics, traces)
-- **OpenSearch Dashboards** - Web UI for log analysis and search
-- **Vector** - OTLP receiver for logs and metrics
-- **OTel Collector** - Handles distributed traces
-- **Grafana** - Beautiful dashboards and alerting
-
-## Architecture
-Boomi Atom / API Gateway
-                    │
-            ┌───────┴───────┐
-            │               │
-            ▼               ▼
-         Vector        OTel Collector
-      (Logs/Metrics)     (Traces)
-            │               │
-            └───────┬───────┘
-                    │
-                    ▼
-               OpenSearch
-                    │
-            ┌───────┴───────┐
-            │               │
-            ▼               ▼
-        OpenSearch        Grafana
-        Dashboards
-
-## Access
-
-| Service | URL | Credentials |
-|---------|-----|-------------|
-| **Grafana** | http://localhost:3000 | admin / admin |
-| **OpenSearch Dashboards** | http://localhost:5601 | None |
-| **OpenSearch API** | http://localhost:9200 | None |
-
-## Configure Boomi
-
-### Boomi Atom (Runtime)
-
-Add environment variables in **Atom Management → Properties:**
+To set custom credentials before installing:
 
 ```bash
+export GRAFANA_PASSWORD=mypassword
+export CONTROL_PLANE_PASSWORD=mypassword
+./install-boomi-stack.sh
+```
+
+---
+
+## Architecture
+
+| Component | Ports | Signals | Destination |
+|---|---|---|---|
+| **Vector** | :4317 (gRPC), :4318 (HTTP) | Logs + Metrics | OpenSearch |
+| **OTel Collector** | :4319 (gRPC), :4320 (HTTP) | Traces | OpenSearch + consumer fanout |
+| **Control Plane** | :8090 (HTTPS) | — | Manages trace consumers |
+| **Grafana** | :3000 | — | Pre-built dashboards |
+
+Logs and metrics go directly to OpenSearch via Vector. Traces are handled by the OTel Collector, which fans them out to OpenSearch and any enabled consumers.
+
+---
+
+## Access Points
+
+| Service | URL | Default Credentials |
+|---|---|---|
+| **Control Plane** | https://localhost:8090 | admin / changeme |
+| **Grafana** | http://localhost:3000 | admin / changeme |
+| **OpenSearch API** | http://localhost:9200 | None |
+
+> **Note:** The Control Plane uses a self-signed TLS cert — accept the browser warning on first visit.
+
+---
+
+## Configure Boomi Atom
+
+Add these environment variables in **Atom Management → Properties**:
+
+```
 OTEL_EXPORTER_OTLP_ENDPOINT=http://host.docker.internal:4317
 OTEL_EXPORTER_OTLP_PROTOCOL=grpc
 OTEL_LOGS_EXPORTER=otlp
@@ -58,178 +61,79 @@ OTEL_METRICS_EXPORTER=otlp
 OTEL_SERVICE_NAME=boomi-runtime
 ```
 
-**For traces:**
-```bash
+For traces:
+
+```
 OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=http://host.docker.internal:4319
 OTEL_TRACES_EXPORTER=otlp
 ```
 
-### Boomi API Gateway
+---
 
-1. Navigate to **API Gateway → OpenTelemetry Settings**
-2. **Enable OpenTelemetry:** Toggle ON
-3. **Exporter Endpoint/URL:** `http://host.docker.internal:4317`
-4. **Add Custom Header:**
-   - Key: `service.name`
-   - Value: `boomi-api-gateway`
-5. **Enable:** Logs, Metrics, Traces
-6. **Traces Endpoint:** `http://host.docker.internal:4319`
-7. **Save**
-
-## Management Commands
-
-### Check Status
+## Stack Management
 
 ```bash
-bash <(curl -sSL https://raw.githubusercontent.com/pythonicshahdev/boomi-observability-stack/main/status-boomi-stack.sh)
+./status-boomi-stack.sh    # Check container and telemetry status
+./stop-boomi-stack.sh      # Stop all containers (data preserved)
+./start-boomi-stack.sh     # Restart stopped containers
+./remove-boomi-stack.sh    # Remove containers and optionally volumes
 ```
 
-Or locally:
-```bash
-./status-boomi-stack.sh
-```
+---
 
-### Stop Stack
+## Supported Trace Consumers
 
-```bash
-bash <(curl -sSL https://raw.githubusercontent.com/pythonicshahdev/boomi-observability-stack/main/stop-boomi-stack.sh)
-```
+Toggle consumers on/off via the Control Plane UI at https://localhost:8090.
 
-### Start Stack (After Stop)
+| Consumer | Notes |
+|---|---|
+| New Relic | Free tier: 100 GB/month |
+| Datadog | — |
+| Dynatrace | OTLP native since v1.222+ |
+| Splunk | HEC endpoint |
 
-```bash
-bash <(curl -sSL https://raw.githubusercontent.com/pythonicshahdev/boomi-observability-stack/main/start-boomi-stack.sh)
-```
-
-### Uninstall
-
-```bash
-bash <(curl -sSL https://raw.githubusercontent.com/pythonicshahdev/boomi-observability-stack/main/remove-boomi-stack.sh)
-```
-
-## Manual Installation
-
-If you prefer to run commands yourself:
-
-### 1. Create Network
-```bash
-docker network create boomi-net
-```
-
-### 2. Start OpenSearch
-```bash
-docker run -d --name opensearch --network boomi-net -p 9200:9200 -e "discovery.type=single-node" -e "DISABLE_SECURITY_PLUGIN=true" -e "OPENSEARCH_JAVA_OPTS=-Xms512m -Xmx512m" -v opensearch-data:/usr/share/opensearch/data --restart unless-stopped opensearchproject/opensearch:latest
-```
-
-### 3. Wait for OpenSearch (Important!)
-```bash
-sleep 30
-```
-
-### 4. Start OpenSearch Dashboards
-```bash
-docker run -d --name opensearch-dashboards --network boomi-net -p 5601:5601 -e "OPENSEARCH_HOSTS=http://opensearch:9200" -e "DISABLE_SECURITY_DASHBOARDS_PLUGIN=true" --restart unless-stopped opensearchproject/opensearch-dashboards:latest
-```
-
-### 5. Start Vector
-```bash
-docker run -d --name vector --network boomi-net -p 4317:4317 -p 4318:4318 --restart unless-stopped pythonicshahdev/boomi-vector:latest
-```
-
-### 6. Start OTel Collector
-```bash
-docker run -d --name otel-collector --network boomi-net -p 4319:4317 -p 4320:4318 --restart unless-stopped pythonicshahdev/boomi-otel-collector:latest
-```
-
-### 7. Start Grafana
-```bash
-docker run -d --name grafana --network boomi-net -p 3000:3000 -e "GF_SECURITY_ADMIN_PASSWORD=admin" -e "GF_SECURITY_ADMIN_USER=admin" -v grafana-data:/var/lib/grafana --restart unless-stopped grafana/grafana:latest
-```
+---
 
 ## Ports
 
-| Port | Service | Purpose |
-|------|---------|---------|
-| **3000** | Grafana | Web UI |
-| **4317** | Vector | OTLP gRPC (logs/metrics) |
-| **4318** | Vector | OTLP HTTP (logs/metrics) |
-| **4319** | OTel Collector | OTLP gRPC (traces) |
-| **4320** | OTel Collector | OTLP HTTP (traces) |
-| **5601** | OpenSearch Dashboards | Web UI |
-| **9200** | OpenSearch | REST API |
+| Port | Component | Purpose |
+|---|---|---|
+| 4317 | Vector | OTLP gRPC — Logs + Metrics |
+| 4318 | Vector | OTLP HTTP — Logs + Metrics |
+| 4319 | OTel Collector | OTLP gRPC — Traces |
+| 4320 | OTel Collector | OTLP HTTP — Traces |
+| 3000 | Grafana | Dashboards |
+| 8090 | Control Plane | Consumer management UI |
+| 9200 | OpenSearch | REST API |
 
-## Grafana Setup
+---
 
-### Configure Data Sources
+## Multi-Node Runtimes
 
-1. Go to http://localhost:3000 (admin/admin)
-2. **Configuration** → **Data sources** → **Add data source**
-3. Search: **"Elasticsearch"**
+All Boomi Atoms point their OTLP config at the same host — data flows in automatically. For larger clusters:
 
-**Boomi Metrics:**
-Name: Boomi Metrics
-URL: http://opensearch:9200
-Index name: boomi-metrics-*
-Pattern: No pattern
-Time field name: timestamp
-Version: 8.0+
-Default query mode: Metrics
+| Option | When to apply |
+|---|---|
+| Increase OpenSearch heap (`OPENSEARCH_JAVA_OPTS=-Xms2g -Xmx2g`) | Multiple nodes with sustained telemetry |
+| Deploy on a dedicated host | Any production or long-running cluster |
+| Replace local OpenSearch with AWS OpenSearch or Elastic Cloud | High-volume clusters needing storage durability |
 
-**Boomi Logs:**
-Name: Boomi Logs
-URL: http://opensearch:9200
-Index name: boomi-logs-*
-Pattern: No pattern
-Time field name: timestamp
-Version: 8.0+
-Default query mode: Logs
-
-### Create Dashboard
-
-See [GRAFANA-SETUP.md](docs/GRAFANA-SETUP.md) for detailed dashboard creation guide.
-
-## Docker Images
-
-- **Vector:** https://hub.docker.com/r/pythonicshahdev/boomi-vector
-- **OTel Collector:** https://hub.docker.com/r/pythonicshahdev/boomi-otel-collector
-
-**Supported Platforms:**
-- linux/amd64 (Intel/AMD)
-- linux/arm64 (Apple Silicon, AWS Graviton)
+---
 
 ## Troubleshooting
 
-### Check Container Logs
 ```bash
 docker logs vector
 docker logs otel-collector
 docker logs opensearch
 docker logs grafana
+docker logs control-plane
 ```
 
-### Verify Data
+Verify data is flowing:
+
 ```bash
-curl http://localhost:9200/boomi-logs-*/_count
-curl http://localhost:9200/boomi-metrics-*/_count
+curl http://localhost:9200/boomi-logs*/_count
+curl http://localhost:9200/boomi-metrics*/_count
+curl http://localhost:9200/ss4o_traces-*/_count
 ```
-
-### Restart a Service
-```bash
-docker restart vector
-docker restart opensearch
-```
-
-### Complete Reset
-```bash
-./remove-boomi-stack.sh
-./install-boomi-stack.sh
-```
-
-## Support
-
-- **Issues:** https://github.com/pythonicshahdev/boomi-observability-stack/issues
-- **Documentation:** https://github.com/pythonicshahdev/boomi-observability-stack
-
-## License
-
-MIT

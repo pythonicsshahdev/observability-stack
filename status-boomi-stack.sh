@@ -14,13 +14,13 @@ docker ps -a \
   --filter "name=prometheus" \
   --filter "name=grafana" \
   --filter "name=control-plane" \
-  --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}" 2>/dev/null || echo "No containers found"
+  --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
 
 echo ""
 echo "Telemetry:"
 echo ""
 
-if curl -sf "http://localhost:9200/_cluster/health" >/dev/null 2>&1; then
+if curl -sf "http://localhost:9200" >/dev/null 2>&1; then
   LOGS=$(curl -sf "http://localhost:9200/boomi-logs*/_count" \
     2>/dev/null | grep -o '"count":[0-9]*' | grep -o '[0-9]*')
   METRICS=$(curl -sf "http://localhost:9200/boomi-metrics*/_count" \
@@ -43,8 +43,8 @@ fi
 
 echo ""
 echo "Access Points:"
-echo "  Control Plane:   https://localhost:8090  (admin / changeme)"
-echo "  Grafana:         http://localhost:3000   (admin / changeme)"
+echo "  Control Plane:   https://localhost:8090"
+echo "  Grafana:         http://localhost:3000"
 echo "  OpenSearch API:  http://localhost:9200"
 echo ""
 echo "Boomi Atom OTLP Endpoints:"
