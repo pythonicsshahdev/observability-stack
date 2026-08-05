@@ -3,36 +3,33 @@
 echo "Removing Boomi Observability Stack..."
 echo ""
 
-# Stop containers
-echo "Stopping containers..."
-docker stop opensearch opensearch-dashboards vector otel-collector grafana 2>/dev/null || true
+echo "Stopping and removing containers..."
+docker stop grafana prometheus vector otel-collector control-plane opensearch 2>/dev/null || true
+docker rm grafana prometheus vector otel-collector control-plane opensearch 2>/dev/null || true
 
-# Remove containers
-echo "Removing containers..."
-docker rm opensearch opensearch-dashboards vector otel-collector grafana 2>/dev/null || true
-
-# Remove network
 echo "Removing network..."
 docker network rm boomi-net 2>/dev/null || true
 
 echo ""
-echo "✅ Containers and network removed"
+echo "Containers and network removed."
 echo ""
-echo "⚠️  Data volumes still exist (opensearch-data, grafana-data)"
+echo "Persistent volumes:"
+echo "  opensearch-data   - OpenSearch telemetry data"
+echo "  grafana-data      - Grafana state"
+echo "  consumers-data    - Control Plane consumer config"
+echo "  collector-config  - OTel Collector rendered config"
+echo "  prometheus-data   - Prometheus metrics history"
 echo ""
-read -p "Do you want to remove data volumes? (y/N): " -n 1 -r
+read -p "Remove all data volumes? (y/N): " -n 1 -r
 echo ""
 
 if [[ $REPLY =~ ^[Yy]$ ]]; then
-  docker volume rm opensearch-data grafana-data 2>/dev/null || true
-  echo "✅ Data volumes removed"
-  echo ""
-  echo "Complete uninstall finished."
+  docker volume rm opensearch-data grafana-data consumers-data collector-config prometheus-data 2>/dev/null || true
+  rm -rf "$HOME/.boomi-stack"
+  echo "Data volumes and config files removed."
 else
-  echo "Data volumes kept."
-  echo ""
-  echo "To remove data later:"
-  echo "  docker volume rm opensearch-data grafana-data"
+  echo "Volumes kept. To remove later:"
+  echo "  docker volume rm opensearch-data grafana-data consumers-data collector-config prometheus-data"
 fi
 
 echo ""

@@ -6,26 +6,30 @@ echo ""
 echo "1. Starting OpenSearch..."
 docker start opensearch
 
-echo "2. Waiting for OpenSearch (10 seconds)..."
-sleep 10
+echo "   Waiting for OpenSearch..."
+until curl -sf "http://localhost:9200/_cluster/health" >/dev/null 2>&1; do sleep 3; done
+echo "   OpenSearch ready."
 
-echo "3. Starting OpenSearch Dashboards..."
-docker start opensearch-dashboards
+echo "2. Starting Control Plane..."
+docker start control-plane
+
+echo "3. Starting OTel Collector..."
+docker start otel-collector
 
 echo "4. Starting Vector..."
 docker start vector
 
-echo "5. Starting OTel Collector..."
-docker start otel-collector
+echo "5. Starting Prometheus..."
+docker start prometheus
 
 echo "6. Starting Grafana..."
 docker start grafana
 
 echo ""
-echo "✅ Stack started!"
+echo "=================================================="
+echo "  Stack started."
 echo ""
-echo "Access:"
-echo "  Grafana:              http://localhost:3000 (admin/admin)"
-echo "  OpenSearch Dashboards: http://localhost:5601"
-echo "  OpenSearch API:        http://localhost:9200"
-echo ""
+echo "  Control Plane:  https://localhost:8090"
+echo "  Grafana:        http://localhost:3000"
+echo "  OpenSearch API: http://localhost:9200"
+echo "=================================================="
